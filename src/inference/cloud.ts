@@ -23,6 +23,12 @@ async function generateWithAnthropic(
 ): Promise<InferenceResult> {
   if (!apiKey) throw new Error('Anthropic API key not configured');
 
+  const SUPPORTED_MIME = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'] as const;
+  type SupportedMime = (typeof SUPPORTED_MIME)[number];
+  if (request.imageBase64 && !SUPPORTED_MIME.includes(request.mimeType as SupportedMime)) {
+    throw new Error(`Unsupported image type for Anthropic: ${request.mimeType}`);
+  }
+
   const imageContent = request.imageBase64
     ? {
         type: 'image',
@@ -59,7 +65,9 @@ async function generateWithAnthropic(
   }
 
   const data = await response.json();
-  return { altText: (data.content[0].text as string).trim(), source: 'anthropic' };
+  const text = data?.content?.[0]?.text;
+  if (typeof text !== 'string') throw new Error(`Anthropic returned no text`);
+  return { altText: text.trim(), source: 'anthropic' };
 }
 
 async function generateWithOpenAI(
@@ -99,10 +107,9 @@ async function generateWithOpenAI(
   }
 
   const data = await response.json();
-  return {
-    altText: (data.choices[0].message.content as string).trim(),
-    source: 'openai',
-  };
+  const text = data?.choices?.[0]?.message?.content;
+  if (typeof text !== 'string') throw new Error(`OpenAI returned no text`);
+  return { altText: text.trim(), source: 'openai' };
 }
 
 async function generateWithGemini(
@@ -111,9 +118,10 @@ async function generateWithGemini(
 ): Promise<InferenceResult> {
   if (!apiKey) throw new Error('Gemini API key not configured');
 
-  const imagePart = request.imageBase64
-    ? { inlineData: { mimeType: request.mimeType, data: request.imageBase64 } }
-    : { fileData: { fileUri: request.imageUrl } };
+  if (!request.imageBase64) {
+    throw new Error('gemini: imageBase64 is required; CORS-blocked images cannot be processed via Gemini');
+  }
+  const imagePart = { inlineData: { mimeType: request.mimeType, data: request.imageBase64 } };
 
   const response = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
@@ -133,10 +141,11 @@ async function generateWithGemini(
   }
 
   const data = await response.json();
-  return {
-    altText: (data.candidates[0].content.parts[0].text as string).trim(),
-    source: 'gemini',
-  };
+  const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+  if (typeof text !== 'string') {
+    throw new Error(`Gemini returned no text (finishReason=${data?.candidates?.[0]?.finishReason ?? 'unknown'})`);
+  }
+  return { altText: text.trim(), source: 'gemini' };
 }
 
 async function generateWithCustomEndpoint(
@@ -176,8 +185,7 @@ async function generateWithCustomEndpoint(
   }
 
   const data = await response.json();
-  return {
-    altText: (data.choices[0].message.content as string).trim(),
-    source: 'custom',
-  };
+  const text = data?.choices?.[0]?.message?.content;
+  if (typeof text !== 'string') throw new Error(`Custom API returned no text`);
+  return { altText: text.trim(), source: 'custom' };
 }
