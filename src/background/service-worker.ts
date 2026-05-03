@@ -9,7 +9,7 @@ async function ensureOffscreenDocument(): Promise<void> {
   if (await chrome.offscreen.hasDocument()) return;
   await chrome.offscreen.createDocument({
     url: OFFSCREEN_URL,
-    reasons: [chrome.offscreen.Reason.DOM_SCRAPING],
+    reasons: [chrome.offscreen.Reason.WORKERS],
     justification: 'Host Transformers.js + Gemma 4 E2B model inference with WebGPU',
   });
 }
@@ -113,19 +113,13 @@ chrome.runtime.onMessage.addListener(
     const { imageUrl, style } = message.payload;
 
     (async () => {
-      const { imageBase64, mimeType } = await fetchImageBytes(imageUrl);
-      const settings = await getSettings();
-      const apiKeys = await getApiKeys();
-      const prompt = buildPrompt(style, settings.customPrompt);
-      const request: InferenceRequest = { imageBase64, imageUrl, mimeType, prompt };
-
       try {
-        const result = await runCascade(
-          request,
-          settings,
-          apiKeys,
-          generateWithGemmaViaOffscreen,
-        );
+        const { imageBase64, mimeType } = await fetchImageBytes(imageUrl);
+        const settings = await getSettings();
+        const apiKeys = await getApiKeys();
+        const prompt = buildPrompt(style, settings.customPrompt);
+        const request: InferenceRequest = { imageBase64, imageUrl, mimeType, prompt };
+        const result = await runCascade(request, settings, apiKeys, generateWithGemmaViaOffscreen);
         sendResponse({ result });
       } catch (err) {
         sendResponse({ error: err instanceof Error ? err.message : 'Unknown error' });
@@ -139,9 +133,10 @@ chrome.runtime.onMessage.addListener(
 chrome.runtime.onMessage.addListener(
   (message: { type: string }, _sender, sendResponse: (r: unknown) => void) => {
     if (message.type !== 'CHECK_CHROME_AI') return false;
-    import('../inference/chrome-ai').then(({ isChromeAIAvailable }) =>
-      isChromeAIAvailable().then((available: boolean) => sendResponse({ available }))
-    );
+    import('../inference/chrome-ai')
+      .then(({ isChromeAIAvailable }) => isChromeAIAvailable())
+      .then((available) => sendResponse({ available }))
+      .catch(() => sendResponse({ available: false }));
     return true;
   },
 );
