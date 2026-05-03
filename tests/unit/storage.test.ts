@@ -56,6 +56,23 @@ describe('setSettings', () => {
     expect(s.style).toBe('detailed');
     expect(s.provider).toBe('openai');
   });
+
+  it('never touches local storage', async () => {
+    await setSettings({ provider: 'anthropic' });
+    expect(localStore.provider).toBeUndefined();
+  });
+
+  it('preserves false boolean over default true', async () => {
+    await setSettings({ preferBuiltinAI: false });
+    const s = await getSettings();
+    expect(s.preferBuiltinAI).toBe(false);
+  });
+
+  it('round-trips a non-null customPrompt', async () => {
+    await setSettings({ customPrompt: 'describe the chart in detail' });
+    const s = await getSettings();
+    expect(s.customPrompt).toBe('describe the chart in detail');
+  });
 });
 
 describe('getApiKeys / setApiKeys', () => {
