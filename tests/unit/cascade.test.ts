@@ -32,6 +32,10 @@ const gemmaFn = vi.fn().mockResolvedValue(gemmaResult);
 
 afterEach(() => vi.clearAllMocks());
 
+beforeEach(() => {
+  gemmaFn.mockResolvedValue(gemmaResult);
+});
+
 describe('runCascade — cloud provider selected', () => {
   it('calls cloud provider directly, skips all in-browser tiers', async () => {
     vi.spyOn(cloud, 'generateWithCloud').mockResolvedValue({ altText: 'Cloud result.', source: 'anthropic' });
@@ -47,6 +51,13 @@ describe('runCascade — cloud provider selected', () => {
     expect(result.source).toBe('anthropic');
     expect(gemmaFn).not.toHaveBeenCalled();
     expect(chromeAI.isChromeAIAvailable).not.toHaveBeenCalled();
+  });
+
+  it('propagates errors from cloud provider', async () => {
+    vi.spyOn(cloud, 'generateWithCloud').mockRejectedValue(new Error('Anthropic API key not configured'));
+    await expect(
+      runCascade(req, { ...AUTO_SETTINGS, provider: 'anthropic' }, EMPTY_KEYS, gemmaFn),
+    ).rejects.toThrow('Anthropic API key not configured');
   });
 });
 
@@ -90,6 +101,16 @@ describe('runCascade — auto mode', () => {
 
     await expect(runCascade(req, AUTO_SETTINGS, EMPTY_KEYS, gemmaFn)).rejects.toThrow(
       'WebGPU not available',
+    );
+  });
+
+  it('propagates errors from Chrome AI', async () => {
+    vi.spyOn(chromeAI, 'isChromeAIAvailable').mockResolvedValue(true);
+    vi.spyOn(chromeAI, 'generateWithChromeAI').mockRejectedValue(
+      new Error('chrome-ai: imageBase64 is required'),
+    );
+    await expect(runCascade(req, AUTO_SETTINGS, EMPTY_KEYS, gemmaFn)).rejects.toThrow(
+      'chrome-ai: imageBase64 is required',
     );
   });
 });
