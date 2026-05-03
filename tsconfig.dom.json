@@ -9,5 +9,6 @@
     "src/options/**/*",
     "src/offscreen/**/*",
     "tests/**/*"
-  ]
+  ],
+  "exclude": ["tests/integration/**/*"]
 }
