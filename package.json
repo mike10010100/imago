@@ -6,8 +6,9 @@
     "build": "npm run build:ext && npm run build:content",
     "build:ext": "vite build",
     "build:content": "vite build --config vite.content.config.ts",
-    "postbuild:ext": "cp manifest.json dist/manifest.json && cp src/offscreen/offscreen.html dist/offscreen.html && cp src/options/options.html dist/options.html && cp -r icons dist/icons && sed -i '' 's|../offscreen.js|offscreen.js|' dist/offscreen.html",
+    "postbuild:ext": "node scripts/postbuild.mjs",
     "dev": "npm run build -- --watch",
+    "typecheck": "tsc -p tsconfig.dom.json --noEmit && tsc -p tsconfig.worker.json --noEmit",
     "test": "vitest run",
     "test:watch": "vitest"
   },
