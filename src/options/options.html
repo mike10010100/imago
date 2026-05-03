@@ -1,5 +1,99 @@
 <!DOCTYPE html>
 <html lang="en">
-<head><meta charset="UTF-8"><title>Alt Text Generator — Settings</title></head>
-<body><script type="module" src="options.js"></script></body>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Alt Text Generator — Settings</title>
+  <link rel="stylesheet" href="options.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="logo">🖼</div>
+      <div>
+        <h1>Alt Text Generator</h1>
+        <p class="subtitle">Settings</p>
+      </div>
+    </header>
+
+    <section>
+      <h2>AI Provider</h2>
+      <div class="tabs" id="provider-tabs" role="tablist">
+        <button class="tab active" data-provider="auto" role="tab">Auto</button>
+        <button class="tab" data-provider="anthropic" role="tab">Anthropic</button>
+        <button class="tab" data-provider="openai" role="tab">OpenAI</button>
+        <button class="tab" data-provider="gemini" role="tab">Gemini</button>
+        <button class="tab" data-provider="custom" role="tab">Custom</button>
+      </div>
+
+      <div id="panel-auto">
+        <div class="cascade-status" id="cascade-status">
+          <div class="status-row">
+            <span class="dot" id="chrome-ai-dot"></span>
+            <span>Chrome Built-in AI</span>
+            <span class="badge" id="chrome-ai-badge">Checking…</span>
+          </div>
+          <div class="status-row">
+            <span class="dot" id="gemma-dot" style="background:#334155"></span>
+            <span>Gemma 4 E2B</span>
+            <span class="badge badge-blue" id="gemma-badge">Not downloaded</span>
+          </div>
+        </div>
+        <label class="checkbox-label">
+          <input type="checkbox" id="prefer-builtin-ai" checked>
+          Prefer Chrome Built-in AI when available
+        </label>
+        <div class="danger-row" id="model-delete-row" hidden>
+          <span>Delete downloaded model</span>
+          <button id="delete-model-btn" class="danger-btn">Delete cached model</button>
+        </div>
+      </div>
+
+      <div id="panel-cloud" hidden>
+        <label class="field-label">
+          API Key
+          <input type="password" id="api-key-input" placeholder="Paste your API key here" autocomplete="off">
+        </label>
+        <div id="custom-fields" hidden>
+          <label class="field-label" style="margin-top:12px">
+            Endpoint URL
+            <input type="url" id="custom-endpoint-input" placeholder="https://localhost:11434/v1">
+          </label>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Alt Text Style</h2>
+      <div class="style-cards" id="style-cards">
+        <div class="style-card active" data-style="brief" tabindex="0" role="button">
+          <h3>Brief</h3>
+          <p>1–2 sentences. WCAG-style, concise.</p>
+        </div>
+        <div class="style-card" data-style="detailed" tabindex="0" role="button">
+          <h3>Detailed</h3>
+          <p>Full description, context, mood.</p>
+        </div>
+      </div>
+
+      <details id="advanced-prompt">
+        <summary>Advanced: custom prompt</summary>
+        <div class="advanced-body">
+          <p class="hint">Use <code>{style}</code> to interpolate the Brief/Detailed description.</p>
+          <textarea id="custom-prompt-input" rows="5" spellcheck="false"></textarea>
+          <button id="reset-prompt-btn" class="link-btn">Reset to default</button>
+        </div>
+      </details>
+    </section>
+
+    <footer>
+      <span class="version">v0.1.0</span>
+      <div class="actions">
+        <button id="reset-all-btn">Reset all</button>
+        <button id="save-btn" class="primary-btn">Save</button>
+      </div>
+    </footer>
+  </div>
+  <script type="module" src="options.js"></script>
+</body>
 </html>

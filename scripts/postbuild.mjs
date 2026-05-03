@@ -3,6 +3,7 @@ import { copyFileSync, cpSync, readFileSync, writeFileSync } from 'fs';
 // Copy HTML files to dist/
 copyFileSync('src/offscreen/offscreen.html', 'dist/offscreen.html');
 copyFileSync('src/options/options.html', 'dist/options.html');
+copyFileSync('src/options/options.css', 'dist/options.css');
 copyFileSync('manifest.json', 'dist/manifest.json');
 
 // Copy icons
