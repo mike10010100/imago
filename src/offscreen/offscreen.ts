@@ -5,28 +5,36 @@ if (env.backends.onnx.wasm) env.backends.onnx.wasm.proxy = false;
 
 const MODEL_ID = 'onnx-community/gemma-4-e2b-it';
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type TextGenPipeline = (input: any, options?: any) => Promise<any>;
-let pipe: TextGenPipeline | null = null;
+// @huggingface/transformers does not export a typed callable interface for text-generation
+type TextGenPipeline = (input: unknown, options?: unknown) => Promise<unknown>;
+let pipePromise: Promise<TextGenPipeline> | null = null;
 
-async function loadModel(): Promise<void> {
-  if (pipe !== null) return;
-  pipe = (await pipeline('text-generation', MODEL_ID, {
-    device: 'webgpu',
-    progress_callback: (info: { progress?: number; status?: string }) => {
-      if (info.status === 'progress' && typeof info.progress === 'number') {
-        chrome.runtime.sendMessage({
-          type: 'MODEL_DOWNLOAD_PROGRESS',
-          payload: { progress: Math.round(info.progress) },
-        } satisfies ExtensionMessage);
-      }
-    },
-  })) as unknown as TextGenPipeline;
-  await chrome.storage.sync.set({ modelDownloaded: true });
+function getModel(): Promise<TextGenPipeline> {
+  if (!pipePromise) {
+    pipePromise = (async () => {
+      const p = (await pipeline('text-generation', MODEL_ID, {
+        device: 'webgpu',
+        progress_callback: (info: { progress?: number; status?: string }) => {
+          if (info.status === 'progress' && typeof info.progress === 'number') {
+            chrome.runtime.sendMessage({
+              type: 'MODEL_DOWNLOAD_PROGRESS',
+              payload: { progress: Math.round(info.progress) },
+            } satisfies ExtensionMessage);
+          }
+        },
+      })) as unknown as TextGenPipeline;
+      await chrome.storage.sync.set({ modelDownloaded: true });
+      return p;
+    })().catch((err: unknown) => {
+      pipePromise = null; // allow retry on failure
+      throw err;
+    });
+  }
+  return pipePromise;
 }
 
 async function handleGenerate(request: InferenceRequest): Promise<InferenceResult> {
-  await loadModel();
+  const pipe = await getModel();
 
   let objectUrl: string | null = null;
   try {
@@ -39,7 +47,7 @@ async function handleGenerate(request: InferenceRequest): Promise<InferenceResul
 
     objectUrl = URL.createObjectURL(blob);
 
-    const output = await (pipe as TextGenPipeline)([
+    const output = await pipe([
       {
         role: 'user',
         content: [
@@ -49,9 +57,12 @@ async function handleGenerate(request: InferenceRequest): Promise<InferenceResul
       },
     ], { max_new_tokens: 256 });
 
-    const messages = (output as Array<{ generated_text: Array<{ role: string; content: string }> }>)[0]
-      .generated_text;
-    const assistantContent = messages.at(-1)?.content ?? '';
+    const entry = (output as Array<{ generated_text: unknown }>)[0]?.generated_text;
+    if (!Array.isArray(entry)) {
+      throw new Error('Unexpected pipeline output shape — expected generated_text array');
+    }
+    const assistantContent = (entry.at(-1) as { content?: string } | undefined)?.content ?? '';
+    if (!assistantContent) throw new Error('Gemma returned empty response');
 
     return { altText: assistantContent.trim(), source: 'gemma-4-e2b' };
   } finally {
