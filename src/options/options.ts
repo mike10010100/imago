@@ -50,8 +50,14 @@ async function checkChromeAIStatus(): Promise<void> {
   const badge = document.getElementById('chrome-ai-badge') as HTMLElement;
 
   try {
-    const response = await new Promise<{ available: boolean }>((resolve) => {
-      chrome.runtime.sendMessage({ type: 'CHECK_CHROME_AI' }, resolve);
+    const response = await new Promise<{ available: boolean } | undefined>((resolve, reject) => {
+      chrome.runtime.sendMessage({ type: 'CHECK_CHROME_AI' }, (r: { available: boolean } | undefined) => {
+        if (chrome.runtime.lastError) {
+          reject(new Error(chrome.runtime.lastError.message));
+          return;
+        }
+        resolve(r);
+      });
     });
     if (response?.available) {
       dot.classList.add('active');
@@ -167,6 +173,7 @@ function bindEvents(settings: Settings, apiKeys: ApiKeys): void {
         keyUpdate.customEndpoint = customEndpoint;
       }
       await setApiKeys(keyUpdate);
+      Object.assign(apiKeys, keyUpdate);
     }
 
     const saveBtn = document.getElementById('save-btn') as HTMLButtonElement;
