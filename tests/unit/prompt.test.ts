@@ -24,6 +24,14 @@ describe('buildPrompt', () => {
     expect(result).toBe('Just describe the image in one sentence.');
   });
 
+  it('interpolates all occurrences of {style} in a custom prompt', () => {
+    const result = buildPrompt('brief', 'Be {style}. Really, be {style}.');
+    expect(result).not.toContain('{style}');
+    expect(result).toBe(
+      'Be 1–2 sentences, concise and purposeful. Really, be 1–2 sentences, concise and purposeful.'
+    );
+  });
+
   it('exports DEFAULT_PROMPT as a non-empty string', () => {
     expect(typeof DEFAULT_PROMPT).toBe('string');
     expect(DEFAULT_PROMPT.length).toBeGreaterThan(0);

@@ -12,5 +12,5 @@ const STYLE_DESCRIPTIONS: Record<StyleMode, string> = {
 
 export function buildPrompt(style: StyleMode, customPrompt: string | null): string {
   const template = customPrompt ?? DEFAULT_PROMPT;
-  return template.replace('{style}', STYLE_DESCRIPTIONS[style]);
+  return template.replaceAll('{style}', STYLE_DESCRIPTIONS[style]);
 }
