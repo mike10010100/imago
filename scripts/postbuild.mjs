@@ -1,4 +1,4 @@
-import { copyFileSync, cpSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
+import { copyFileSync, cpSync, readFileSync, writeFileSync } from 'fs';
 
 // Copy HTML files to dist/
 copyFileSync('src/offscreen/offscreen.html', 'dist/offscreen.html');
