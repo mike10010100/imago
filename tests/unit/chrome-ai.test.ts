@@ -55,19 +55,35 @@ describe('generateWithChromeAI', () => {
   });
 
   it('returns trimmed alt text with chrome-ai source', async () => {
-    const result = await generateWithChromeAI(mockRequest);
+    const req = { ...mockRequest, imageBase64: btoa('fake-image-data') };
+    const result = await generateWithChromeAI(req);
     expect(result.altText).toBe('A golden retriever on a beach.');
     expect(result.source).toBe('chrome-ai');
   });
 
   it('always destroys the session', async () => {
-    await generateWithChromeAI(mockRequest);
+    const req = { ...mockRequest, imageBase64: btoa('fake-image-data') };
+    await generateWithChromeAI(req);
     expect(mockSession.destroy).toHaveBeenCalledOnce();
   });
 
   it('destroys session even when prompt throws', async () => {
     mockSession.prompt.mockRejectedValue(new Error('inference failed'));
-    await expect(generateWithChromeAI(mockRequest)).rejects.toThrow('inference failed');
+    const req = { ...mockRequest, imageBase64: btoa('fake-image-data') };
+    await expect(generateWithChromeAI(req)).rejects.toThrow('inference failed');
     expect(mockSession.destroy).toHaveBeenCalledOnce();
+  });
+
+  it('passes a Blob to session.prompt when imageBase64 is set', async () => {
+    const req = { ...mockRequest, imageBase64: btoa('fake-image-data') };
+    await generateWithChromeAI(req);
+    const calls = mockSession.prompt.mock.calls;
+    expect(calls.length).toBeGreaterThan(0);
+    const [inputs] = calls[0];
+    expect(inputs[0].value).toBeInstanceOf(Blob);
+  });
+
+  it('throws when imageBase64 is null', async () => {
+    await expect(generateWithChromeAI(mockRequest)).rejects.toThrow('imageBase64 is required');
   });
 });

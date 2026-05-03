@@ -29,9 +29,10 @@ export async function generateWithChromeAI(
   });
 
   try {
-    const imageValue: unknown = request.imageBase64
-      ? base64ToBlob(request.imageBase64, request.mimeType)
-      : request.imageUrl;
+    if (!request.imageBase64) {
+      throw new Error('chrome-ai: imageBase64 is required; CORS-blocked images cannot be processed');
+    }
+    const imageValue = base64ToBlob(request.imageBase64, request.mimeType);
 
     const raw = await session.prompt([
       { type: 'image', value: imageValue },
