@@ -51,6 +51,7 @@ const POPUP_CSS = `
 `;
 
 let host: HTMLElement | null = null;
+let shadow: ShadowRoot | null = null;
 let escapeHandler: ((e: KeyboardEvent) => void) | null = null;
 let currentImageUrl: string = '';
 
@@ -59,7 +60,7 @@ export function showPopup(options: PopupOptions): void {
   destroyPopup();
 
   host = document.createElement('div');
-  const shadow = host.attachShadow({ mode: 'closed' });
+  shadow = host.attachShadow({ mode: 'closed' });
 
   const style = document.createElement('style');
   style.textContent = POPUP_CSS;
@@ -87,7 +88,6 @@ export function showPopup(options: PopupOptions): void {
 
 export function updatePopup(result?: InferenceResult, error?: string): void {
   if (!host) return;
-  const shadow = host.shadowRoot;
   if (!shadow) return;
   const popup = shadow.querySelector('.popup') as HTMLElement | null;
   if (!popup) return;
@@ -106,6 +106,7 @@ export function updatePopup(result?: InferenceResult, error?: string): void {
 export function destroyPopup(): void {
   host?.remove();
   host = null;
+  shadow = null;
   document.removeEventListener('click', handleOutsideClick);
   if (escapeHandler) {
     document.removeEventListener('keydown', escapeHandler);
@@ -113,7 +114,8 @@ export function destroyPopup(): void {
   }
 }
 
-function handleOutsideClick(): void {
+function handleOutsideClick(e: MouseEvent): void {
+  if (host && e.composedPath().includes(host)) return;
   destroyPopup();
 }
 
@@ -142,14 +144,14 @@ function renderResult(popup: HTMLElement, result: InferenceResult): void {
     <button class="active" data-style="brief">Brief</button>
     <button data-style="detailed">Detailed</button>
   `;
-  toggle.addEventListener('click', (e) => {
+  (toggle as HTMLElement).onclick = (e) => {
     const btn = (e.target as HTMLElement).closest('button');
     if (!btn) return;
     const newStyle = btn.dataset.style as StyleMode;
     toggle.querySelectorAll('button').forEach((b) => b.classList.remove('active'));
     btn.classList.add('active');
     requestRegenerate(newStyle, result);
-  });
+  };
 
   const p = document.createElement('p');
   p.className = 'alt-text';
@@ -192,7 +194,6 @@ function renderResult(popup: HTMLElement, result: InferenceResult): void {
 
 function requestRegenerate(style: StyleMode, _previousResult: InferenceResult): void {
   if (!host) return;
-  const shadow = host.shadowRoot;
   if (!shadow) return;
   const popup = shadow.querySelector('.popup') as HTMLElement;
 
@@ -217,8 +218,8 @@ function placePopup(
   popup: HTMLElement,
   rect: { top: number; right: number; bottom: number; left: number },
 ): void {
-  const top = rect.bottom + window.scrollY + 8;
-  const left = Math.min(rect.left + window.scrollX, window.innerWidth - 276);
+  const top = rect.bottom + 8;
+  const left = Math.min(rect.left, window.innerWidth - 276);
   popup.style.top = `${Math.max(top, 4)}px`;
   popup.style.left = `${Math.max(left, 4)}px`;
 }
