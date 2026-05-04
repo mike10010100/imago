@@ -1,32 +1,51 @@
-import { pipeline, env } from '@huggingface/transformers';
+import {
+  AutoProcessor,
+  Gemma4ForConditionalGeneration,
+  load_image,
+  env,
+} from '@huggingface/transformers';
 import type { InferenceRequest, InferenceResult, ExtensionMessage } from '../types';
 
 if (env.backends.onnx.wasm) env.backends.onnx.wasm.proxy = false;
 
-const MODEL_ID = 'onnx-community/gemma-4-e2b-it';
+const MODEL_ID = 'onnx-community/gemma-4-E2B-it-ONNX';
 
-// @huggingface/transformers does not export a typed callable interface for text-generation
-type TextGenPipeline = (input: unknown, options?: unknown) => Promise<unknown>;
-let pipePromise: Promise<TextGenPipeline> | null = null;
+type Processor = {
+  apply_chat_template(messages: unknown, options: unknown): unknown;
+  (prompt: unknown, image: unknown, options: unknown): Promise<{ input_ids: { dims: number[] } }>;
+  batch_decode(tokens: unknown, options: unknown): string[];
+};
 
-function getModel(): Promise<TextGenPipeline> {
-  if (!pipePromise) {
-    pipePromise = (async () => {
-      const p = (await pipeline('text-generation', MODEL_ID, {
+type Model = {
+  generate(inputs: unknown): Promise<unknown>;
+};
+
+type ModelState = { processor: Processor; model: Model };
+
+let modelPromise: Promise<ModelState> | null = null;
+
+function getModel(): Promise<ModelState> {
+  if (!modelPromise) {
+    modelPromise = (async () => {
+      const processor = (await AutoProcessor.from_pretrained(MODEL_ID)) as unknown as Processor;
+      const model = (await (Gemma4ForConditionalGeneration as unknown as {
+        from_pretrained(id: string, opts: unknown): Promise<Model>;
+      }).from_pretrained(MODEL_ID, {
+        dtype: 'q4f16',
         device: 'webgpu',
-      })) as unknown as TextGenPipeline;
+      }));
       await chrome.storage.sync.set({ modelDownloaded: true });
-      return p;
+      return { processor, model };
     })().catch((err: unknown) => {
-      pipePromise = null; // allow retry on failure
+      modelPromise = null;
       throw err;
     });
   }
-  return pipePromise;
+  return modelPromise;
 }
 
 async function handleGenerate(request: InferenceRequest): Promise<InferenceResult> {
-  const pipe = await getModel();
+  const { processor, model } = await getModel();
 
   let objectUrl: string | null = null;
   try {
@@ -39,24 +58,40 @@ async function handleGenerate(request: InferenceRequest): Promise<InferenceResul
 
     objectUrl = URL.createObjectURL(blob);
 
-    const output = await pipe([
+    const messages = [
       {
         role: 'user',
         content: [
-          { type: 'image', image: objectUrl },
+          { type: 'image' },
           { type: 'text', text: request.prompt },
         ],
       },
-    ], { max_new_tokens: 256 });
+    ];
 
-    const entry = (output as Array<{ generated_text: unknown }>)[0]?.generated_text;
-    if (!Array.isArray(entry)) {
-      throw new Error('Unexpected pipeline output shape — expected generated_text array');
-    }
-    const assistantContent = (entry.at(-1) as { content?: string } | undefined)?.content ?? '';
-    if (!assistantContent) throw new Error('Gemma returned empty response');
+    const prompt = processor.apply_chat_template(messages, {
+      enable_thinking: false,
+      add_generation_prompt: true,
+    });
 
-    return { altText: assistantContent.trim(), source: 'gemma-4-e2b' };
+    const image = await load_image(objectUrl);
+    const inputs = await processor(prompt, image, { add_special_tokens: false });
+
+    const outputs = await model.generate({
+      ...inputs,
+      max_new_tokens: 256,
+      do_sample: false,
+    });
+
+    const inputLen = inputs.input_ids.dims.at(-1) ?? 0;
+    const decoded = processor.batch_decode(
+      (outputs as { slice(a: null, b: [number, null]): unknown }).slice(null, [inputLen, null]),
+      { skip_special_tokens: true },
+    );
+
+    const altText = decoded[0]?.trim();
+    if (!altText) throw new Error('Gemma returned empty response');
+
+    return { altText, source: 'gemma-4-e2b' };
   } finally {
     if (objectUrl) URL.revokeObjectURL(objectUrl);
   }
