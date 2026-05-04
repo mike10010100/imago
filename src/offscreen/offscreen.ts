@@ -6,7 +6,12 @@ import {
 } from '@huggingface/transformers';
 import type { InferenceRequest, InferenceResult, ExtensionMessage } from '../types';
 
-if (env.backends.onnx.wasm) env.backends.onnx.wasm.proxy = false;
+if (env.backends.onnx.wasm) {
+  env.backends.onnx.wasm.proxy = false;
+  // SharedArrayBuffer (required for multi-threading) is not available in extension
+  // pages without COOP/COEP headers, so force single-threaded WASM execution.
+  env.backends.onnx.wasm.numThreads = 1;
+}
 
 const MODEL_ID = 'onnx-community/gemma-4-E2B-it-ONNX';
 
@@ -20,22 +25,34 @@ type Model = {
   generate(inputs: unknown): Promise<unknown>;
 };
 
-type ModelState = { processor: Processor; model: Model };
+type ModelState = { processor: Processor; model: Model; device: 'webgpu' | 'wasm' };
 
 let modelPromise: Promise<ModelState> | null = null;
+
+async function detectDevice(): Promise<'webgpu' | 'wasm'> {
+  if (typeof navigator !== 'undefined' && 'gpu' in navigator) {
+    try {
+      const adapter = await (navigator as unknown as { gpu: { requestAdapter(): Promise<unknown> } }).gpu.requestAdapter();
+      if (adapter) return 'webgpu';
+    } catch {
+      // WebGPU unavailable
+    }
+  }
+  return 'wasm';
+}
 
 function getModel(): Promise<ModelState> {
   if (!modelPromise) {
     modelPromise = (async () => {
+      const device = await detectDevice();
+      // q4f16 requires GPU float16 support; q4 works on both WebGPU and WASM
+      const dtype = device === 'webgpu' ? 'q4f16' : 'q4';
       const processor = (await AutoProcessor.from_pretrained(MODEL_ID)) as unknown as Processor;
       const model = (await (Gemma4ForConditionalGeneration as unknown as {
         from_pretrained(id: string, opts: unknown): Promise<Model>;
-      }).from_pretrained(MODEL_ID, {
-        dtype: 'q4f16',
-        device: 'webgpu',
-      }));
+      }).from_pretrained(MODEL_ID, { dtype, device }));
       await chrome.storage.sync.set({ modelDownloaded: true });
-      return { processor, model };
+      return { processor, model, device };
     })().catch((err: unknown) => {
       modelPromise = null;
       throw err;
