@@ -220,8 +220,17 @@ function placePopup(
   popup: HTMLElement,
   rect: { top: number; right: number; bottom: number; left: number },
 ): void {
-  const top = rect.bottom + 8;
-  const left = Math.min(rect.left, window.innerWidth - 276);
-  popup.style.top = `${Math.max(top, 4)}px`;
-  popup.style.left = `${Math.max(left, 4)}px`;
+  const POPUP_H = 120;
+  const POPUP_W = 276;
+  const GAP = 8;
+
+  const belowFits = rect.bottom + GAP + POPUP_H <= window.innerHeight;
+  const top = belowFits
+    ? rect.bottom + GAP
+    : Math.max(rect.top - POPUP_H - GAP, GAP);
+
+  const left = Math.min(Math.max(rect.left, GAP), window.innerWidth - POPUP_W - GAP);
+
+  popup.style.top = `${top}px`;
+  popup.style.left = `${left}px`;
 }
