@@ -73,10 +73,10 @@ chrome.contextMenus.onClicked.addListener(
     const tabId = tab.id;
     const imageUrl = info.srcUrl ?? '';
 
-    chrome.tabs.sendMessage(tabId, {
-      type: 'SHOW_POPUP',
-      payload: { imageUrl },
-    } satisfies ExtensionMessage);
+    const sendToTab = (msg: ExtensionMessage) =>
+      chrome.tabs.sendMessage(tabId, msg, () => void chrome.runtime.lastError);
+
+    sendToTab({ type: 'SHOW_POPUP', payload: { imageUrl } } satisfies ExtensionMessage);
 
     const { imageBase64, mimeType } = await fetchImageBytes(imageUrl);
     const settings = await getSettings();
@@ -92,17 +92,11 @@ chrome.contextMenus.onClicked.addListener(
         apiKeys,
         generateWithGemmaViaOffscreen,
       );
-      chrome.tabs.sendMessage(tabId, {
-        type: 'SHOW_POPUP',
-        payload: { result, imageUrl },
-      } satisfies ExtensionMessage);
+      sendToTab({ type: 'SHOW_POPUP', payload: { result, imageUrl } } satisfies ExtensionMessage);
     } catch (err) {
       const error = err instanceof Error ? err.message : 'Unknown error';
       const userMessage = mapErrorMessage(error, settings);
-      chrome.tabs.sendMessage(tabId, {
-        type: 'SHOW_POPUP',
-        payload: { error: userMessage, imageUrl },
-      } satisfies ExtensionMessage);
+      sendToTab({ type: 'SHOW_POPUP', payload: { error: userMessage, imageUrl } } satisfies ExtensionMessage);
     }
   },
 );
