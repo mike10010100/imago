@@ -135,6 +135,19 @@ chrome.runtime.onMessage.addListener(
   },
 );
 
+chrome.runtime.onMessage.addListener(
+  (message: ExtensionMessage, _sender, sendResponse: (r: unknown) => void) => {
+    if (message.type !== 'DOWNLOAD_MODEL') return false;
+    ensureOffscreenDocument()
+      .then(() => {
+        chrome.runtime.sendMessage({ type: 'PRELOAD_MODEL' } satisfies ExtensionMessage, () => void chrome.runtime.lastError);
+        sendResponse({ ok: true });
+      })
+      .catch((err: Error) => sendResponse({ error: err.message }));
+    return true;
+  },
+);
+
 function mapErrorMessage(raw: string, _settings: unknown): string {
   if (raw.includes('WebGPU') || raw.includes('webgpu')) {
     return "Your browser doesn't support local AI (WebGPU required) — add a cloud API key in Settings.";

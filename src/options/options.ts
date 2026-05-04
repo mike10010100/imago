@@ -21,6 +21,9 @@ function applySettings(settings: Settings, apiKeys: ApiKeys): void {
   const deleteRow = document.getElementById('model-delete-row') as HTMLElement;
   deleteRow.hidden = !settings.modelDownloaded;
 
+  const downloadRow = document.getElementById('model-download-row') as HTMLElement;
+  downloadRow.hidden = settings.modelDownloaded;
+
   const apiKeyInput = document.getElementById('api-key-input') as HTMLInputElement;
   const key = getApiKeyForProvider(settings.provider, apiKeys);
   if (key) apiKeyInput.value = key;
@@ -120,6 +123,47 @@ function bindEvents(settings: Settings, apiKeys: ApiKeys): void {
 
   document.getElementById('reset-prompt-btn')!.addEventListener('click', () => {
     (document.getElementById('custom-prompt-input') as HTMLTextAreaElement).value = DEFAULT_PROMPT;
+  });
+
+  document.getElementById('download-model-btn')!.addEventListener('click', () => {
+    const btn = document.getElementById('download-model-btn') as HTMLButtonElement;
+    const status = document.getElementById('download-status') as HTMLElement;
+    btn.disabled = true;
+    btn.textContent = 'Downloading…';
+    status.textContent = 'This may take several minutes';
+    chrome.runtime.sendMessage({ type: 'DOWNLOAD_MODEL' }, () => void chrome.runtime.lastError);
+  });
+
+  // Update download progress badge while model is downloading
+  chrome.runtime.onMessage.addListener((message) => {
+    if (message.type !== 'MODEL_DOWNLOAD_PROGRESS') return;
+    const status = document.getElementById('download-status') as HTMLElement;
+    status.textContent = `${message.payload.progress}%`;
+  });
+
+  // When modelDownloaded flips to true, update the Gemma row and swap buttons
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area !== 'sync' || !changes.modelDownloaded?.newValue) return;
+    const downloadRow = document.getElementById('model-download-row') as HTMLElement;
+    downloadRow.hidden = true;
+    const deleteRow = document.getElementById('model-delete-row') as HTMLElement;
+    deleteRow.hidden = false;
+    const gemmaDot = document.getElementById('gemma-dot') as HTMLElement;
+    gemmaDot.classList.add('active');
+    const gemmaBadge = document.getElementById('gemma-badge') as HTMLElement;
+    gemmaBadge.textContent = 'Ready';
+    gemmaBadge.className = 'badge';
+  });
+
+  // Also show download button again if model is deleted while options page is open
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area !== 'sync' || changes.modelDownloaded?.newValue !== false) return;
+    const downloadRow = document.getElementById('model-download-row') as HTMLElement;
+    downloadRow.hidden = false;
+    const btn = document.getElementById('download-model-btn') as HTMLButtonElement;
+    btn.disabled = false;
+    btn.textContent = 'Download model (~2 GB)';
+    (document.getElementById('download-status') as HTMLElement).textContent = '';
   });
 
   document.getElementById('delete-model-btn')?.addEventListener('click', async () => {

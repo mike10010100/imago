@@ -44,16 +44,35 @@ async function detectDevice(): Promise<'webgpu' | 'wasm'> {
   return 'wasm';
 }
 
+function broadcastProgress(progress: number): void {
+  chrome.runtime.sendMessage(
+    { type: 'MODEL_DOWNLOAD_PROGRESS', payload: { progress } } satisfies ExtensionMessage,
+    () => void chrome.runtime.lastError,
+  );
+}
+
 function getModel(): Promise<ModelState> {
   if (!modelPromise) {
     modelPromise = (async () => {
       const device = await detectDevice();
       // q4f16 requires GPU float16 support; q4 works on both WebGPU and WASM
       const dtype = device === 'webgpu' ? 'q4f16' : 'q4';
-      const processor = (await AutoProcessor.from_pretrained(MODEL_ID)) as unknown as Processor;
+
+      let lastBroadcast = -1;
+      const progress_callback = (info: { status: string; progress?: number }) => {
+        if (info.status === 'progress' && typeof info.progress === 'number') {
+          const pct = Math.round(info.progress);
+          if (pct - lastBroadcast >= 5) {
+            lastBroadcast = pct;
+            broadcastProgress(pct);
+          }
+        }
+      };
+
+      const processor = (await AutoProcessor.from_pretrained(MODEL_ID, { progress_callback })) as unknown as Processor;
       const model = (await (Gemma4ForConditionalGeneration as unknown as {
         from_pretrained(id: string, opts: unknown): Promise<Model>;
-      }).from_pretrained(MODEL_ID, { dtype, device }));
+      }).from_pretrained(MODEL_ID, { dtype, device, progress_callback }));
       await chrome.storage.sync.set({ modelDownloaded: true });
       return { processor, model, device };
     })().catch((err: unknown) => {
@@ -129,6 +148,16 @@ chrome.runtime.onMessage.addListener(
     if (message.type !== 'GENERATE_ALT_TEXT') return false;
     handleGenerate(message.payload)
       .then((result) => sendResponse(result))
+      .catch((err: Error) => sendResponse({ error: err.message }));
+    return true;
+  },
+);
+
+chrome.runtime.onMessage.addListener(
+  (message: ExtensionMessage, _sender, sendResponse: (r: unknown) => void) => {
+    if (message.type !== 'PRELOAD_MODEL') return false;
+    getModel()
+      .then(() => sendResponse({ ok: true }))
       .catch((err: Error) => sendResponse({ error: err.message }));
     return true;
   },

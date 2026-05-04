@@ -35,4 +35,6 @@ export type ExtensionMessage =
   | { type: 'MODEL_DOWNLOAD_PROGRESS'; payload: { progress: number } }
   | { type: 'SHOW_POPUP'; payload: { result?: InferenceResult; error?: string; imageUrl: string } }
   | { type: 'REGENERATE'; payload: { imageUrl: string; style: StyleMode } }
-  | { type: 'CHECK_CHROME_AI' };
+  | { type: 'CHECK_CHROME_AI' }
+  | { type: 'DOWNLOAD_MODEL' }
+  | { type: 'PRELOAD_MODEL' };

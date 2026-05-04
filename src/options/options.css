@@ -62,6 +62,18 @@ h2 {
 }
 .checkbox-label input { cursor: pointer; }
 
+.model-download-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 0 4px;
+}
+.model-download-row button {
+  background: #7c3aed; color: white; border: none;
+  border-radius: 6px; padding: 5px 14px; font-size: 12px;
+  cursor: pointer; font-weight: 600;
+}
+.model-download-row button:disabled { opacity: 0.5; cursor: default; }
+.download-status { color: #475569; font-size: 11px; }
+
 .danger-row {
   display: flex; align-items: center; justify-content: space-between;
   padding-top: 10px; border-top: 1px solid #334155; margin-top: 4px;
