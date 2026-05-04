@@ -23,22 +23,24 @@ async function generateWithAnthropic(
 ): Promise<InferenceResult> {
   if (!apiKey) throw new Error('Anthropic API key not configured');
 
+  if (!request.imageBase64) {
+    throw new Error('anthropic: imageBase64 is required; CORS-blocked images cannot be processed');
+  }
+
   const SUPPORTED_MIME = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'] as const;
   type SupportedMime = (typeof SUPPORTED_MIME)[number];
-  if (request.imageBase64 && !SUPPORTED_MIME.includes(request.mimeType as SupportedMime)) {
+  if (!SUPPORTED_MIME.includes(request.mimeType as SupportedMime)) {
     throw new Error(`Unsupported image type for Anthropic: ${request.mimeType}`);
   }
 
-  const imageContent = request.imageBase64
-    ? {
-        type: 'image',
-        source: {
-          type: 'base64',
-          media_type: request.mimeType as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp',
-          data: request.imageBase64,
-        },
-      }
-    : { type: 'image', source: { type: 'url', url: request.imageUrl } };
+  const imageContent = {
+    type: 'image',
+    source: {
+      type: 'base64',
+      media_type: request.mimeType as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp',
+      data: request.imageBase64,
+    },
+  };
 
   const response = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',

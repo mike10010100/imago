@@ -3,7 +3,7 @@
   "name": "Alt Text Generator",
   "version": "0.1.0",
   "description": "Generate WCAG-compliant alt text for images via right-click.",
-  "permissions": ["contextMenus", "storage", "offscreen", "scripting"],
+  "permissions": ["contextMenus", "storage", "offscreen"],
   "host_permissions": ["<all_urls>"],
   "background": {
     "service_worker": "service-worker.js",

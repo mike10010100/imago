@@ -54,6 +54,7 @@ let host: HTMLElement | null = null;
 let shadow: ShadowRoot | null = null;
 let escapeHandler: ((e: KeyboardEvent) => void) | null = null;
 let currentImageUrl: string = '';
+let currentStyle: StyleMode = 'brief';
 
 export function showPopup(options: PopupOptions): void {
   currentImageUrl = options.imageUrl ?? '';
@@ -141,8 +142,8 @@ function renderResult(popup: HTMLElement, result: InferenceResult): void {
     return t;
   })();
   toggle.innerHTML = `
-    <button class="active" data-style="brief">Brief</button>
-    <button data-style="detailed">Detailed</button>
+    <button ${currentStyle === 'brief' ? 'class="active"' : ''} data-style="brief">Brief</button>
+    <button ${currentStyle === 'detailed' ? 'class="active"' : ''} data-style="detailed">Detailed</button>
   `;
   (toggle as HTMLElement).onclick = (e) => {
     const btn = (e.target as HTMLElement).closest('button');
@@ -150,6 +151,7 @@ function renderResult(popup: HTMLElement, result: InferenceResult): void {
     const newStyle = btn.dataset.style as StyleMode;
     toggle.querySelectorAll('button').forEach((b) => b.classList.remove('active'));
     btn.classList.add('active');
+    currentStyle = newStyle;
     requestRegenerate(newStyle, result);
   };
 

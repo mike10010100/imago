@@ -14,14 +14,6 @@ function getModel(): Promise<TextGenPipeline> {
     pipePromise = (async () => {
       const p = (await pipeline('text-generation', MODEL_ID, {
         device: 'webgpu',
-        progress_callback: (info: { progress?: number; status?: string }) => {
-          if (info.status === 'progress' && typeof info.progress === 'number') {
-            chrome.runtime.sendMessage({
-              type: 'MODEL_DOWNLOAD_PROGRESS',
-              payload: { progress: Math.round(info.progress) },
-            } satisfies ExtensionMessage);
-          }
-        },
       })) as unknown as TextGenPipeline;
       await chrome.storage.sync.set({ modelDownloaded: true });
       return p;
