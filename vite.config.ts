@@ -7,6 +7,7 @@ const __dirname = fileURLToPath(new URL('.', import.meta.url));
 export default defineConfig({
   build: {
     target: 'chrome120',
+    chunkSizeWarningLimit: 10_000,
     outDir: 'dist',
     emptyOutDir: true,
     rollupOptions: {

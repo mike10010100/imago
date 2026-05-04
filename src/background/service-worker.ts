@@ -1,6 +1,7 @@
 import { getSettings, getApiKeys } from '../storage';
 import { buildPrompt } from '../prompt';
 import { runCascade } from '../inference/cascade';
+import { isChromeAIAvailable } from '../inference/chrome-ai';
 import type { InferenceRequest, InferenceResult, ExtensionMessage } from '../types';
 
 const OFFSCREEN_URL = chrome.runtime.getURL('offscreen.html');
@@ -127,8 +128,7 @@ chrome.runtime.onMessage.addListener(
 chrome.runtime.onMessage.addListener(
   (message: { type: string }, _sender, sendResponse: (r: unknown) => void) => {
     if (message.type !== 'CHECK_CHROME_AI') return false;
-    import('../inference/chrome-ai')
-      .then(({ isChromeAIAvailable }) => isChromeAIAvailable())
+    isChromeAIAvailable()
       .then((available) => sendResponse({ available }))
       .catch(() => sendResponse({ available: false }));
     return true;
