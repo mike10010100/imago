@@ -11,6 +11,9 @@ if (env.backends.onnx.wasm) {
   // SharedArrayBuffer (required for multi-threading) is not available in extension
   // pages without COOP/COEP headers, so force single-threaded WASM execution.
   env.backends.onnx.wasm.numThreads = 1;
+  // Point ONNX Runtime at locally bundled wasm/mjs files instead of jsDelivr CDN.
+  // MV3 CSP blocks external scripts; 'self' (chrome-extension://<id>/) is allowed.
+  env.backends.onnx.wasm.wasmPaths = chrome.runtime.getURL('assets/ort/');
 }
 
 const MODEL_ID = 'onnx-community/gemma-4-E2B-it-ONNX';
