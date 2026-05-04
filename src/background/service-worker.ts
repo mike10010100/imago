@@ -136,16 +136,19 @@ chrome.runtime.onMessage.addListener(
 );
 
 function mapErrorMessage(raw: string, _settings: unknown): string {
-  if (raw.includes('WebGPU')) {
-    return "Your browser doesn't support local AI — add a cloud API key in Settings to continue.";
+  if (raw.includes('WebGPU') || raw.includes('webgpu')) {
+    return "Your browser doesn't support local AI (WebGPU required) — add a cloud API key in Settings.";
+  }
+  if (raw.includes('huggingface.co') || raw.includes('locate file') || raw.includes('from_pretrained')) {
+    return "Couldn't download the AI model from HuggingFace. Check your connection, or add a cloud API key in Settings.";
   }
   if (raw.includes('API key') || raw.includes('401') || raw.includes('403')) {
     return 'API key invalid or missing — check Settings.';
   }
   if (raw.includes('timed out')) {
-    return 'Generation timed out. Try again or switch to a cloud provider in Settings.';
+    return 'Generation timed out. The model may still be downloading — try again, or add a cloud API key in Settings.';
   }
-  if (raw.includes('fetch') || raw.includes('CORS') || raw.includes('Failed to fetch')) {
+  if (raw.includes('imageBase64 is required') || raw.includes('CORS') || raw.includes('Failed to fetch image')) {
     return "This image can't be accessed due to security restrictions.";
   }
   return raw;
