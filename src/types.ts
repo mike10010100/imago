@@ -37,4 +37,6 @@ export type ExtensionMessage =
   | { type: 'REGENERATE'; payload: { imageUrl: string; style: StyleMode } }
   | { type: 'CHECK_CHROME_AI' }
   | { type: 'DOWNLOAD_MODEL' }
-  | { type: 'PRELOAD_MODEL' };
+  | { type: 'PRELOAD_MODEL' }
+  | { type: 'MODEL_LOADED' }
+  | { type: 'MODEL_LOAD_ERROR'; payload: { error: string } };

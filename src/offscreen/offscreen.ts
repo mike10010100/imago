@@ -51,6 +51,26 @@ function broadcastProgress(progress: number): void {
   );
 }
 
+function broadcastError(error: string): void {
+  chrome.runtime.sendMessage(
+    { type: 'MODEL_LOAD_ERROR', payload: { error } } satisfies ExtensionMessage,
+    () => void chrome.runtime.lastError,
+  );
+}
+
+function makeProgressCallback(): (info: { status: string; progress?: number }) => void {
+  let last = -1;
+  return (info: { status: string; progress?: number }) => {
+    if (info.status === 'progress' && typeof info.progress === 'number') {
+      const pct = Math.round(info.progress);
+      if (pct - last >= 5) {
+        last = pct;
+        broadcastProgress(pct);
+      }
+    }
+  };
+}
+
 function getModel(): Promise<ModelState> {
   if (!modelPromise) {
     modelPromise = (async () => {
@@ -58,22 +78,15 @@ function getModel(): Promise<ModelState> {
       // q4f16 requires GPU float16 support; q4 works on both WebGPU and WASM
       const dtype = device === 'webgpu' ? 'q4f16' : 'q4';
 
-      let lastBroadcast = -1;
-      const progress_callback = (info: { status: string; progress?: number }) => {
-        if (info.status === 'progress' && typeof info.progress === 'number') {
-          const pct = Math.round(info.progress);
-          if (pct - lastBroadcast >= 5) {
-            lastBroadcast = pct;
-            broadcastProgress(pct);
-          }
-        }
-      };
-
-      const processor = (await AutoProcessor.from_pretrained(MODEL_ID, { progress_callback })) as unknown as Processor;
+      // Use separate callbacks so model weight progress starts fresh after processor finishes
+      const processor = (await AutoProcessor.from_pretrained(MODEL_ID, {
+        progress_callback: makeProgressCallback(),
+      })) as unknown as Processor;
       const model = (await (Gemma4ForConditionalGeneration as unknown as {
         from_pretrained(id: string, opts: unknown): Promise<Model>;
-      }).from_pretrained(MODEL_ID, { dtype, device, progress_callback }));
-      await chrome.storage.sync.set({ modelDownloaded: true });
+      }).from_pretrained(MODEL_ID, { dtype, device, progress_callback: makeProgressCallback() }));
+      // Offscreen docs can't access chrome.storage — notify service worker to update it
+      chrome.runtime.sendMessage({ type: 'MODEL_LOADED' } satisfies ExtensionMessage, () => void chrome.runtime.lastError);
       return { processor, model, device };
     })().catch((err: unknown) => {
       modelPromise = null;
@@ -113,7 +126,7 @@ async function handleGenerate(request: InferenceRequest): Promise<InferenceResul
     });
 
     const image = await load_image(objectUrl);
-    const inputs = await processor(prompt, image, { add_special_tokens: false });
+    const inputs = await processor(prompt, image, null, { add_special_tokens: false });
 
     const outputs = await model.generate({
       ...inputs,
@@ -158,7 +171,10 @@ chrome.runtime.onMessage.addListener(
     if (message.type !== 'PRELOAD_MODEL') return false;
     getModel()
       .then(() => sendResponse({ ok: true }))
-      .catch((err: Error) => sendResponse({ error: err.message }));
+      .catch((err: Error) => {
+        broadcastError(err.message);
+        sendResponse({ error: err.message });
+      });
     return true;
   },
 );

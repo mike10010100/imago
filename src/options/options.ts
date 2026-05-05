@@ -134,11 +134,21 @@ function bindEvents(settings: Settings, apiKeys: ApiKeys): void {
     chrome.runtime.sendMessage({ type: 'DOWNLOAD_MODEL' }, () => void chrome.runtime.lastError);
   });
 
-  // Update download progress badge while model is downloading
+  // Update download progress while model is downloading
   chrome.runtime.onMessage.addListener((message) => {
-    if (message.type !== 'MODEL_DOWNLOAD_PROGRESS') return;
-    const status = document.getElementById('download-status') as HTMLElement;
-    status.textContent = `${message.payload.progress}%`;
+    if (message.type === 'MODEL_DOWNLOAD_PROGRESS') {
+      const status = document.getElementById('download-status') as HTMLElement;
+      status.textContent = `${message.payload.progress}%`;
+      return;
+    }
+    if (message.type === 'MODEL_LOAD_ERROR') {
+      const btn = document.getElementById('download-model-btn') as HTMLButtonElement;
+      const status = document.getElementById('download-status') as HTMLElement;
+      btn.disabled = false;
+      btn.textContent = 'Download model (~2 GB)';
+      status.textContent = `Error: ${message.payload.error}`;
+      status.style.color = '#ef4444';
+    }
   });
 
   // When modelDownloaded flips to true, update the Gemma row and swap buttons
