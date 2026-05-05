@@ -1,6 +1,13 @@
 import { getSettings, setSettings, getApiKeys, setApiKeys } from '../storage';
 import { DEFAULT_PROMPT } from '../prompt';
-import type { Provider, StyleMode, Settings, ApiKeys } from '../types';
+import type { Provider, StyleMode, LocalModel, Settings, ApiKeys } from '../types';
+
+const MODEL_LABELS: Record<LocalModel, string> = { e2b: 'Gemma 4 E2B', e4b: 'Gemma 4 E4B' };
+const MODEL_SIZES: Record<LocalModel, string> = { e2b: '~2 GB', e4b: '~4 GB' };
+
+function isDownloaded(settings: Settings, model: LocalModel): boolean {
+  return model === 'e4b' ? settings.e4bDownloaded : settings.modelDownloaded;
+}
 
 async function init(): Promise<void> {
   const [settings, apiKeys] = await Promise.all([getSettings(), getApiKeys()]);
@@ -18,11 +25,11 @@ function applySettings(settings: Settings, apiKeys: ApiKeys): void {
   const pbi = document.getElementById('prefer-builtin-ai') as HTMLInputElement;
   pbi.checked = settings.preferBuiltinAI;
 
-  const deleteRow = document.getElementById('model-delete-row') as HTMLElement;
-  deleteRow.hidden = !settings.modelDownloaded;
+  document.querySelectorAll<HTMLElement>('.model-variant-card').forEach((card) => {
+    card.classList.toggle('active', card.dataset.model === settings.localModel);
+  });
 
-  const downloadRow = document.getElementById('model-download-row') as HTMLElement;
-  downloadRow.hidden = settings.modelDownloaded;
+  applyModelDownloadState(settings, settings.localModel);
 
   const apiKeyInput = document.getElementById('api-key-input') as HTMLInputElement;
   const key = getApiKeyForProvider(settings.provider, apiKeys);
@@ -39,6 +46,34 @@ function applySettings(settings: Settings, apiKeys: ApiKeys): void {
 
   const promptInput = document.getElementById('custom-prompt-input') as HTMLTextAreaElement;
   promptInput.value = settings.customPrompt ?? DEFAULT_PROMPT;
+}
+
+function applyModelDownloadState(settings: Settings, model: LocalModel): void {
+  const downloaded = isDownloaded(settings, model);
+
+  const gemmaLabel = document.getElementById('gemma-label') as HTMLElement;
+  gemmaLabel.textContent = MODEL_LABELS[model];
+
+  const gemmaDot = document.getElementById('gemma-dot') as HTMLElement;
+  gemmaDot.className = downloaded ? 'dot active' : 'dot';
+
+  const gemmaBadge = document.getElementById('gemma-badge') as HTMLElement;
+  gemmaBadge.textContent = downloaded ? 'Ready' : 'Not downloaded';
+  gemmaBadge.className = downloaded ? 'badge' : 'badge badge-blue';
+
+  const downloadRow = document.getElementById('model-download-row') as HTMLElement;
+  downloadRow.hidden = downloaded;
+
+  const btn = document.getElementById('download-model-btn') as HTMLButtonElement;
+  btn.textContent = `Download model (${MODEL_SIZES[model]})`;
+  btn.disabled = false;
+
+  const status = document.getElementById('download-status') as HTMLElement;
+  status.textContent = '';
+  status.style.color = '';
+
+  const deleteRow = document.getElementById('model-delete-row') as HTMLElement;
+  deleteRow.hidden = !downloaded;
 }
 
 function showProviderPanel(provider: Provider): void {
@@ -75,15 +110,6 @@ async function checkChromeAIStatus(): Promise<void> {
     badge.textContent = 'Unknown';
     badge.className = 'badge badge-gray';
   }
-
-  const settings = await getSettings();
-  const gemmaDot = document.getElementById('gemma-dot') as HTMLElement;
-  const gemmaBadge = document.getElementById('gemma-badge') as HTMLElement;
-  if (settings.modelDownloaded) {
-    gemmaDot.classList.add('active');
-    gemmaBadge.textContent = 'Ready';
-    gemmaBadge.className = 'badge';
-  }
 }
 
 function getApiKeyForProvider(provider: Provider, apiKeys: ApiKeys): string {
@@ -99,7 +125,9 @@ function getApiKeyForProvider(provider: Provider, apiKeys: ApiKeys): string {
 function bindEvents(settings: Settings, apiKeys: ApiKeys): void {
   let currentProvider: Provider = settings.provider;
   let currentStyle: StyleMode = settings.style;
+  let currentLocalModel: LocalModel = settings.localModel;
 
+  // Provider tabs
   document.getElementById('provider-tabs')!.addEventListener('click', (e) => {
     const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('.tab');
     if (!btn?.dataset.provider) return;
@@ -113,6 +141,18 @@ function bindEvents(settings: Settings, apiKeys: ApiKeys): void {
     apiKeyInput.value = getApiKeyForProvider(currentProvider, apiKeys);
   });
 
+  // Model variant selector (E2B / E4B)
+  document.getElementById('model-variant-cards')!.addEventListener('click', (e) => {
+    const card = (e.target as HTMLElement).closest<HTMLElement>('.model-variant-card');
+    if (!card?.dataset.model) return;
+    currentLocalModel = card.dataset.model as LocalModel;
+    document.querySelectorAll('.model-variant-card').forEach((c) => c.classList.remove('active'));
+    card.classList.add('active');
+    applyModelDownloadState(settings, currentLocalModel);
+    setSettings({ localModel: currentLocalModel }).catch(console.error);
+  });
+
+  // Style cards
   document.getElementById('style-cards')!.addEventListener('click', (e) => {
     const card = (e.target as HTMLElement).closest<HTMLElement>('.style-card');
     if (!card?.dataset.style) return;
@@ -125,16 +165,18 @@ function bindEvents(settings: Settings, apiKeys: ApiKeys): void {
     (document.getElementById('custom-prompt-input') as HTMLTextAreaElement).value = DEFAULT_PROMPT;
   });
 
+  // Download model button
   document.getElementById('download-model-btn')!.addEventListener('click', () => {
     const btn = document.getElementById('download-model-btn') as HTMLButtonElement;
     const status = document.getElementById('download-status') as HTMLElement;
     btn.disabled = true;
     btn.textContent = 'Downloading…';
     status.textContent = 'This may take several minutes';
+    status.style.color = '';
     chrome.runtime.sendMessage({ type: 'DOWNLOAD_MODEL' }, () => void chrome.runtime.lastError);
   });
 
-  // Update download progress while model is downloading
+  // Download progress
   chrome.runtime.onMessage.addListener((message) => {
     if (message.type === 'MODEL_DOWNLOAD_PROGRESS') {
       const status = document.getElementById('download-status') as HTMLElement;
@@ -145,65 +187,67 @@ function bindEvents(settings: Settings, apiKeys: ApiKeys): void {
       const btn = document.getElementById('download-model-btn') as HTMLButtonElement;
       const status = document.getElementById('download-status') as HTMLElement;
       btn.disabled = false;
-      btn.textContent = 'Download model (~2 GB)';
+      btn.textContent = `Download model (${MODEL_SIZES[currentLocalModel]})`;
       status.textContent = `Error: ${message.payload.error}`;
       status.style.color = '#ef4444';
     }
   });
 
-  // When modelDownloaded flips to true, update the Gemma row and swap buttons
+  // Storage listener: model became ready
   chrome.storage.onChanged.addListener((changes, area) => {
-    if (area !== 'sync' || !changes.modelDownloaded?.newValue) return;
-    const downloadRow = document.getElementById('model-download-row') as HTMLElement;
-    downloadRow.hidden = true;
-    const deleteRow = document.getElementById('model-delete-row') as HTMLElement;
-    deleteRow.hidden = false;
-    const gemmaDot = document.getElementById('gemma-dot') as HTMLElement;
-    gemmaDot.classList.add('active');
-    const gemmaBadge = document.getElementById('gemma-badge') as HTMLElement;
-    gemmaBadge.textContent = 'Ready';
-    gemmaBadge.className = 'badge';
+    if (area !== 'sync') return;
+
+    const e2bReady = changes.modelDownloaded?.newValue === true;
+    const e4bReady = changes.e4bDownloaded?.newValue === true;
+
+    if (e2bReady) settings.modelDownloaded = true;
+    if (e4bReady) settings.e4bDownloaded = true;
+
+    if ((e2bReady && currentLocalModel === 'e2b') || (e4bReady && currentLocalModel === 'e4b')) {
+      applyModelDownloadState(settings, currentLocalModel);
+    }
   });
 
-  // Also show download button again if model is deleted while options page is open
+  // Storage listener: model was deleted
   chrome.storage.onChanged.addListener((changes, area) => {
-    if (area !== 'sync' || changes.modelDownloaded?.newValue !== false) return;
-    const downloadRow = document.getElementById('model-download-row') as HTMLElement;
-    downloadRow.hidden = false;
-    const btn = document.getElementById('download-model-btn') as HTMLButtonElement;
-    btn.disabled = false;
-    btn.textContent = 'Download model (~2 GB)';
-    (document.getElementById('download-status') as HTMLElement).textContent = '';
+    if (area !== 'sync') return;
+
+    if (changes.modelDownloaded?.newValue === false) {
+      settings.modelDownloaded = false;
+      if (currentLocalModel === 'e2b') applyModelDownloadState(settings, 'e2b');
+    }
+    if (changes.e4bDownloaded?.newValue === false) {
+      settings.e4bDownloaded = false;
+      if (currentLocalModel === 'e4b') applyModelDownloadState(settings, 'e4b');
+    }
   });
 
+  // Delete model
   document.getElementById('delete-model-btn')?.addEventListener('click', async () => {
-    if (!confirm('Delete the cached Gemma 4 E2B model (~2 GB)?')) return;
+    const label = MODEL_LABELS[currentLocalModel];
+    if (!confirm(`Delete the cached ${label} model?`)) return;
     const cacheKeys = await caches.keys();
     await Promise.all(
       cacheKeys
         .filter((k) => k.includes('transformers') || k.includes('onnx'))
         .map((k) => caches.delete(k)),
     );
-    await setSettings({ modelDownloaded: false });
-    const deleteRow = document.getElementById('model-delete-row') as HTMLElement;
-    deleteRow.hidden = true;
-    const gemmaBadge = document.getElementById('gemma-badge') as HTMLElement;
-    gemmaBadge.textContent = 'Not downloaded';
-    gemmaBadge.className = 'badge badge-blue';
-    const gemmaDot = document.getElementById('gemma-dot') as HTMLElement;
-    gemmaDot.className = 'dot';
+    const storageKey = currentLocalModel === 'e4b' ? 'e4bDownloaded' : 'modelDownloaded';
+    await setSettings({ [storageKey]: false } as Partial<typeof settings>);
   });
 
+  // Reset all
   document.getElementById('reset-all-btn')!.addEventListener('click', async () => {
     if (!confirm('Reset all settings to defaults?')) return;
     await setSettings({
       provider: 'auto', style: 'brief', customPrompt: null,
-      preferBuiltinAI: true,
+      preferBuiltinAI: true, localModel: 'e2b',
     });
     await setApiKeys({ anthropic: '', openai: '', gemini: '', customEndpoint: '', customKey: '' });
     location.reload();
   });
 
+  // Save
   document.getElementById('save-btn')!.addEventListener('click', async () => {
     const customPromptInput = (document.getElementById('custom-prompt-input') as HTMLTextAreaElement).value.trim();
     const apiKeyInput = (document.getElementById('api-key-input') as HTMLInputElement).value.trim();
@@ -213,6 +257,7 @@ function bindEvents(settings: Settings, apiKeys: ApiKeys): void {
     await setSettings({
       provider: currentProvider,
       style: currentStyle,
+      localModel: currentLocalModel,
       customPrompt: customPromptInput === DEFAULT_PROMPT ? null : customPromptInput || null,
       preferBuiltinAI,
     });
