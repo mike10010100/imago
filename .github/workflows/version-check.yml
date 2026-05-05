@@ -1,0 +1,48 @@
+name: Version Check
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  version-bumped:
+    name: Require version bump
+    runs-on: ubuntu-latest
+    # Skip dependabot and other automated PRs
+    if: github.actor != 'dependabot[bot]'
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Compare manifest versions
+        run: |
+          BASE_VERSION=$(git show "origin/${{ github.base_ref }}:manifest.json" | jq -r '.version')
+          PR_VERSION=$(jq -r '.version' manifest.json)
+
+          echo "Base branch (main): v${BASE_VERSION}"
+          echo "This PR:            v${PR_VERSION}"
+
+          if [ "$BASE_VERSION" = "$PR_VERSION" ]; then
+            echo ""
+            echo "❌ Version not bumped."
+            echo "Please update the 'version' field in manifest.json (and keep package.json in sync)."
+            exit 1
+          fi
+
+          echo ""
+          echo "✅ Version bumped: v${BASE_VERSION} → v${PR_VERSION}"
+
+      - name: Verify manifest and package.json are in sync
+        run: |
+          MANIFEST_VERSION=$(jq -r '.version' manifest.json)
+          PKG_VERSION=$(jq -r '.version' package.json)
+
+          if [ "$MANIFEST_VERSION" != "$PKG_VERSION" ]; then
+            echo "❌ Version mismatch: manifest.json has v${MANIFEST_VERSION} but package.json has v${PKG_VERSION}"
+            echo "Keep both files in sync."
+            exit 1
+          fi
+
+          echo "✅ manifest.json and package.json both at v${MANIFEST_VERSION}"
