@@ -17,6 +17,8 @@ const AUTO_SETTINGS: Settings = {
   customPrompt: null,
   preferBuiltinAI: true,
   modelDownloaded: true,
+  e4bDownloaded: false,
+  localModel: 'e2b',
 };
 
 const EMPTY_KEYS: ApiKeys = {
