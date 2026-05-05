@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Alt Text Generator",
+  "name": "Imago",
   "version": "0.1.0",
   "description": "Generate WCAG-compliant alt text for images via right-click.",
   "permissions": ["contextMenus", "storage", "offscreen"],
@@ -18,7 +18,7 @@
   ],
   "options_page": "options.html",
   "action": {
-    "default_title": "Alt Text Generator",
+    "default_title": "Imago",
     "default_icon": {
       "16": "icons/icon16.png",
       "48": "icons/icon48.png",
