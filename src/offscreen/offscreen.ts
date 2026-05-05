@@ -16,11 +16,16 @@ if (env.backends.onnx.wasm) {
   env.backends.onnx.wasm.wasmPaths = chrome.runtime.getURL('assets/ort/');
 }
 
-const MODEL_ID = 'onnx-community/gemma-4-E2B-it-ONNX';
+export const MODEL_IDS = {
+  e2b: 'onnx-community/gemma-4-E2B-it-ONNX',
+  e4b: 'onnx-community/gemma-4-E4B-it-ONNX',
+} as const;
+
+const DEFAULT_MODEL_ID = MODEL_IDS.e2b;
 
 type Processor = {
   apply_chat_template(messages: unknown, options: unknown): unknown;
-  (prompt: unknown, image: unknown, options: unknown): Promise<{ input_ids: { dims: number[] } }>;
+  (prompt: unknown, image: unknown, audio: unknown, options: unknown): Promise<{ input_ids: { dims: number[] } }>;
   batch_decode(tokens: unknown, options: unknown): string[];
 };
 
@@ -30,7 +35,7 @@ type Model = {
 
 type ModelState = { processor: Processor; model: Model; device: 'webgpu' | 'wasm' };
 
-let modelPromise: Promise<ModelState> | null = null;
+const modelCache = new Map<string, Promise<ModelState>>();
 
 async function detectDevice(): Promise<'webgpu' | 'wasm'> {
   if (typeof navigator !== 'undefined' && 'gpu' in navigator) {
@@ -71,33 +76,38 @@ function makeProgressCallback(): (info: { status: string; progress?: number }) =
   };
 }
 
-function getModel(): Promise<ModelState> {
-  if (!modelPromise) {
-    modelPromise = (async () => {
+function getModel(modelId: string): Promise<ModelState> {
+  if (!modelCache.has(modelId)) {
+    const promise = (async () => {
       const device = await detectDevice();
       // q4f16 requires GPU float16 support; q4 works on both WebGPU and WASM
       const dtype = device === 'webgpu' ? 'q4f16' : 'q4';
 
       // Use separate callbacks so model weight progress starts fresh after processor finishes
-      const processor = (await AutoProcessor.from_pretrained(MODEL_ID, {
+      const processor = (await AutoProcessor.from_pretrained(modelId, {
         progress_callback: makeProgressCallback(),
       })) as unknown as Processor;
       const model = (await (Gemma4ForConditionalGeneration as unknown as {
         from_pretrained(id: string, opts: unknown): Promise<Model>;
-      }).from_pretrained(MODEL_ID, { dtype, device, progress_callback: makeProgressCallback() }));
+      }).from_pretrained(modelId, { dtype, device, progress_callback: makeProgressCallback() }));
       // Offscreen docs can't access chrome.storage — notify service worker to update it
-      chrome.runtime.sendMessage({ type: 'MODEL_LOADED' } satisfies ExtensionMessage, () => void chrome.runtime.lastError);
+      chrome.runtime.sendMessage(
+        { type: 'MODEL_LOADED', payload: { modelId } } satisfies ExtensionMessage,
+        () => void chrome.runtime.lastError,
+      );
       return { processor, model, device };
     })().catch((err: unknown) => {
-      modelPromise = null;
+      modelCache.delete(modelId);
       throw err;
     });
+    modelCache.set(modelId, promise);
   }
-  return modelPromise;
+  return modelCache.get(modelId)!;
 }
 
 async function handleGenerate(request: InferenceRequest): Promise<InferenceResult> {
-  const { processor, model } = await getModel();
+  const modelId = request.localModelId ?? DEFAULT_MODEL_ID;
+  const { processor, model } = await getModel(modelId);
 
   let objectUrl: string | null = null;
   try {
@@ -143,7 +153,8 @@ async function handleGenerate(request: InferenceRequest): Promise<InferenceResul
     const altText = decoded[0]?.trim();
     if (!altText) throw new Error('Gemma returned empty response');
 
-    return { altText, source: 'gemma-4-e2b' };
+    const isE4B = modelId === MODEL_IDS.e4b;
+    return { altText, source: isE4B ? 'gemma-4-e4b' : 'gemma-4-e2b' };
   } finally {
     if (objectUrl) URL.revokeObjectURL(objectUrl);
   }
@@ -169,7 +180,7 @@ chrome.runtime.onMessage.addListener(
 chrome.runtime.onMessage.addListener(
   (message: ExtensionMessage, _sender, sendResponse: (r: unknown) => void) => {
     if (message.type !== 'PRELOAD_MODEL') return false;
-    getModel()
+    getModel(message.payload.modelId)
       .then(() => sendResponse({ ok: true }))
       .catch((err: Error) => {
         broadcastError(err.message);

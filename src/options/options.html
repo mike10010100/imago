@@ -35,12 +35,25 @@
           </div>
           <div class="status-row">
             <span class="dot" id="gemma-dot"></span>
-            <span>Gemma 4 E2B</span>
+            <span id="gemma-label">Gemma 4 E2B</span>
             <span class="badge badge-blue" id="gemma-badge">Not downloaded</span>
           </div>
         </div>
+
+        <h2 style="margin-top:14px">Local Model</h2>
+        <div class="model-variant-cards" id="model-variant-cards">
+          <div class="model-variant-card active" data-model="e2b" tabindex="0" role="button">
+            <h3>E2B <span class="model-size">~2 GB</span></h3>
+            <p>Faster, lighter</p>
+          </div>
+          <div class="model-variant-card" data-model="e4b" tabindex="0" role="button">
+            <h3>E4B <span class="model-size">~4 GB</span></h3>
+            <p>More capable</p>
+          </div>
+        </div>
+
         <div class="model-download-row" id="model-download-row" hidden>
-          <button id="download-model-btn">Download model (~2 GB)</button>
+          <button id="download-model-btn">Download model</button>
           <span id="download-status" class="download-status"></span>
         </div>
         <label class="checkbox-label">

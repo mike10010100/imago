@@ -1,5 +1,6 @@
 export type Provider = 'auto' | 'anthropic' | 'openai' | 'gemini' | 'custom';
 export type StyleMode = 'brief' | 'detailed';
+export type LocalModel = 'e2b' | 'e4b';
 
 export interface Settings {
   provider: Provider;
@@ -7,6 +8,8 @@ export interface Settings {
   customPrompt: string | null;
   preferBuiltinAI: boolean;
   modelDownloaded: boolean;
+  e4bDownloaded: boolean;
+  localModel: LocalModel;
 }
 
 export interface ApiKeys {
@@ -22,11 +25,12 @@ export interface InferenceRequest {
   imageUrl: string;
   mimeType: string;
   prompt: string;
+  localModelId?: string;
 }
 
 export interface InferenceResult {
   altText: string;
-  source: 'chrome-ai' | 'gemma-4-e2b' | 'anthropic' | 'openai' | 'gemini' | 'custom';
+  source: 'chrome-ai' | 'gemma-4-e2b' | 'gemma-4-e4b' | 'anthropic' | 'openai' | 'gemini' | 'custom';
 }
 
 export type ExtensionMessage =
@@ -37,6 +41,6 @@ export type ExtensionMessage =
   | { type: 'REGENERATE'; payload: { imageUrl: string; style: StyleMode } }
   | { type: 'CHECK_CHROME_AI' }
   | { type: 'DOWNLOAD_MODEL' }
-  | { type: 'PRELOAD_MODEL' }
-  | { type: 'MODEL_LOADED' }
+  | { type: 'PRELOAD_MODEL'; payload: { modelId: string } }
+  | { type: 'MODEL_LOADED'; payload: { modelId: string } }
   | { type: 'MODEL_LOAD_ERROR'; payload: { error: string } };

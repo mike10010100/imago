@@ -6,6 +6,8 @@ const SETTINGS_DEFAULTS: Settings = {
   customPrompt: null,
   preferBuiltinAI: true,
   modelDownloaded: false,
+  e4bDownloaded: false,
+  localModel: 'e2b',
 };
 
 const API_KEY_DEFAULTS: ApiKeys = {

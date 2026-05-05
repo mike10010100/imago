@@ -63,6 +63,16 @@ h2 {
 }
 .checkbox-label input { cursor: pointer; }
 
+.model-variant-cards { display: flex; gap: 8px; margin-bottom: 14px; }
+.model-variant-card {
+  flex: 1; background: #1e293b; border: 1px solid #334155;
+  border-radius: 8px; padding: 8px 12px; cursor: pointer;
+}
+.model-variant-card.active { border-color: #7c3aed; }
+.model-variant-card h3 { font-size: 13px; font-weight: 600; color: #e2e8f0; margin-bottom: 2px; }
+.model-variant-card p { font-size: 11px; color: #475569; }
+.model-size { font-weight: 400; color: #64748b; font-size: 11px; }
+
 .model-download-row {
   display: flex; align-items: center; gap: 10px;
   padding: 10px 0 4px;

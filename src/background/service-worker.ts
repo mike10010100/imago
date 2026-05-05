@@ -2,6 +2,7 @@ import { getSettings, getApiKeys } from '../storage';
 import { buildPrompt } from '../prompt';
 import { runCascade } from '../inference/cascade';
 import { isChromeAIAvailable } from '../inference/chrome-ai';
+import { MODEL_IDS } from '../offscreen/offscreen';
 import type { InferenceRequest, InferenceResult, ExtensionMessage } from '../types';
 
 const OFFSCREEN_URL = chrome.runtime.getURL('offscreen.html');
@@ -84,7 +85,8 @@ chrome.contextMenus.onClicked.addListener(
     const apiKeys = await getApiKeys();
     const prompt = buildPrompt(settings.style, settings.customPrompt);
 
-    const request: InferenceRequest = { imageBase64, imageUrl, mimeType, prompt };
+    const localModelId = MODEL_IDS[settings.localModel];
+    const request: InferenceRequest = { imageBase64, imageUrl, mimeType, prompt, localModelId };
 
     try {
       const result = await runCascade(
@@ -113,7 +115,8 @@ chrome.runtime.onMessage.addListener(
         const settings = await getSettings();
         const apiKeys = await getApiKeys();
         const prompt = buildPrompt(style, settings.customPrompt);
-        const request: InferenceRequest = { imageBase64, imageUrl, mimeType, prompt };
+        const localModelId = MODEL_IDS[settings.localModel];
+        const request: InferenceRequest = { imageBase64, imageUrl, mimeType, prompt, localModelId };
         const result = await runCascade(request, settings, apiKeys, generateWithGemmaViaOffscreen);
         sendResponse({ result });
       } catch (err) {
@@ -138,12 +141,16 @@ chrome.runtime.onMessage.addListener(
 chrome.runtime.onMessage.addListener(
   (message: ExtensionMessage, _sender, sendResponse: (r: unknown) => void) => {
     if (message.type !== 'DOWNLOAD_MODEL') return false;
-    ensureOffscreenDocument()
-      .then(() => {
-        chrome.runtime.sendMessage({ type: 'PRELOAD_MODEL' } satisfies ExtensionMessage, () => void chrome.runtime.lastError);
-        sendResponse({ ok: true });
-      })
-      .catch((err: Error) => sendResponse({ error: err.message }));
+    (async () => {
+      const settings = await getSettings();
+      const modelId = MODEL_IDS[settings.localModel];
+      await ensureOffscreenDocument();
+      chrome.runtime.sendMessage(
+        { type: 'PRELOAD_MODEL', payload: { modelId } } satisfies ExtensionMessage,
+        () => void chrome.runtime.lastError,
+      );
+      sendResponse({ ok: true });
+    })().catch((err: Error) => sendResponse({ error: err.message }));
     return true;
   },
 );
@@ -151,7 +158,8 @@ chrome.runtime.onMessage.addListener(
 chrome.runtime.onMessage.addListener(
   (message: ExtensionMessage, _sender, sendResponse: (r: unknown) => void) => {
     if (message.type !== 'MODEL_LOADED') return false;
-    chrome.storage.sync.set({ modelDownloaded: true }).catch(console.error);
+    const storageKey = message.payload.modelId === MODEL_IDS.e4b ? 'e4bDownloaded' : 'modelDownloaded';
+    chrome.storage.sync.set({ [storageKey]: true }).catch(console.error);
     sendResponse({});
     return false;
   },
