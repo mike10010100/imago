@@ -9,7 +9,7 @@ jobs:
     name: Require version bump
     runs-on: ubuntu-latest
     # Skip dependabot and other automated PRs
-    if: github.actor != 'dependabot[bot]'
+    if: github.actor != 'dependabot[bot]' && !startsWith(github.head_ref, 'dependabot/')
 
     steps:
       - uses: actions/checkout@v7
