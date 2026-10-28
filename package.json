@@ -15,7 +15,7 @@
   "devDependencies": {
     "@playwright/test": "latest",
     "@types/chrome": "latest",
-    "jsdom": "^30.1.2",
+    "jsdom": "^30.1.3",
     "typescript": "latest",
     "vite": "latest",
     "vitest": "latest"
